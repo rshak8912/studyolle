@@ -13,14 +13,17 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PostMapping;
 
 import javax.validation.Valid;
+import java.time.LocalDateTime;
+import java.util.Optional;
 
 @Controller
 @RequiredArgsConstructor
 public class AccountController {
 
     private final SignUpFormValidator signUpFormValidator;
+    private final AccountService accountService;
     private final AccountRepository accountRepository;
-    private final JavaMailSender javaMailSender;
+
 
     @InitBinder("signUpForm")
     public void initBinder(WebDataBinder webDataBinder) {
@@ -41,32 +44,32 @@ public class AccountController {
             return "account/sign-up";
         }
 
-        Account newAccount = saveNewAccount(signUpForm);
-        newAccount.generateToken();
-        sendSignUpConfirmEmail(newAccount);
-
+        Account account = accountService.processNewAccount(signUpForm);
+        accountService.login(account);
         return "redirect:/";
     }
 
-    private Account saveNewAccount(@ModelAttribute @Valid SignUpForm signUpForm) {
-        Account account = Account.builder()
-                .email(signUpForm.getEmail())
-                .nickname(signUpForm.getNickname())
-                .password(signUpForm.getPassword()) // TODO password Encoding
-                .emailVerified(false)
-                .studyEnrollmentResultByWeb(true)
-                .studyUpdatedByWeb(true)
-                .build();
-        return accountRepository.save(account);
+    @GetMapping("/check-email-token")
+    public String checkEmailToken(String token, String email, Model model) {
+        Optional<Account> account = accountRepository.findByEmail(email);
+        String view = "account/checked-email";
+
+        if (!account.isPresent()) {
+            model.addAttribute("error", "wrong.error");
+            return view;
+        }
+
+        if (!account.get().isValidToken(token)) {
+            model.addAttribute("error", "wrong.token");
+            return view;
+        }
+        account.get().completeSignUp();
+        accountService.login(account.get());
+
+        model.addAttribute("numberOfUser", accountRepository.count());
+        model.addAttribute("nickname", account.get().getNickname());
+        return view;
     }
 
-    private void sendSignUpConfirmEmail(Account newAccount) {
-        SimpleMailMessage mailMessage = new SimpleMailMessage();
-        mailMessage.setTo(newAccount.getEmail());
-        mailMessage.setSubject("스터디올레, 회원 가입 인증");
-        mailMessage.setText("/check-email-token?token="+ newAccount.getEmailCheckToken() + "&email=" + newAccount.getEmail());
-
-        javaMailSender.send(mailMessage);
-    }
 
 }

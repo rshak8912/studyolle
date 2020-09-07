@@ -6,6 +6,7 @@ import javax.persistence.*;
 import java.time.LocalDateTime;
 import java.util.UUID;
 
+import static java.time.LocalDateTime.now;
 import static javax.persistence.FetchType.*;
 
 @Entity
@@ -13,7 +14,7 @@ import static javax.persistence.FetchType.*;
 @Setter
 @EqualsAndHashCode(of = "id")
 @Builder @AllArgsConstructor @NoArgsConstructor
-
+@ToString(of = {"id", "email", "password"})
 public class Account {
     @Id @GeneratedValue
     private Long id;
@@ -58,5 +59,14 @@ public class Account {
 
     public void generateToken() {
         this.emailCheckToken = UUID.randomUUID().toString();
+    }
+
+    public void completeSignUp() {
+        this.emailVerified = true;
+        this.joinedAt = now();
+    }
+
+    public boolean isValidToken(String token) {
+        return this.emailCheckToken.equals(token);
     }
 }
